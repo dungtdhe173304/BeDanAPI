@@ -140,3 +140,4 @@ D:\BeDan\SupporterBeDanAPI\SupporterBeDanAPI\SupporterBeDanAPI\obj\Debug\net8.0\
 D:\BeDan\SupporterBeDanAPI\SupporterBeDanAPI\SupporterBeDanAPI\bin\Debug\net8.0\BCrypt.Net-Next.dll
 D:\BeDan\SupporterBeDanAPI\SupporterBeDanAPI\SupporterBeDanAPI\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
 D:\BeDan\SupporterBeDanAPI\SupporterBeDanAPI\SupporterBeDanAPI\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
+D:\BeDan\SupporterBeDanAPI\SupporterBeDanAPI\SupporterBeDanAPI\obj\Debug\net8.0\SupporterBeDanAPI.sourcelink.json

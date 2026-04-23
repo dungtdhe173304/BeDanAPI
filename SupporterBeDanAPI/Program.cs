@@ -114,7 +114,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowFrontend");
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Comment out for development
 
 app.UseAuthentication();
 app.UseAuthorization();

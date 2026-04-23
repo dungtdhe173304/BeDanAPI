@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SupporterBeDanAPI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+27fef413b062b3cd873d6e705d0904b602236526")]
 [assembly: System.Reflection.AssemblyProductAttribute("SupporterBeDanAPI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SupporterBeDanAPI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

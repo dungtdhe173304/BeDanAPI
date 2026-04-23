@@ -133,6 +133,18 @@
         }
       }
     },
+    "/Exams/my-exams": {
+      "get": {
+        "tags": [
+          "Exams"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/Exams/by-date/{date}": {
       "get": {
         "tags": [
@@ -395,6 +407,18 @@
         }
       }
     },
+    "/Users/supporters": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/WeatherForecast": {
       "get": {
         "tags": [
@@ -460,7 +484,7 @@
       "CreateExamRequest": {
         "type": "object",
         "properties": {
-          "userId": {
+          "supporterId": {
             "type": "integer",
             "format": "int32"
           },
@@ -534,7 +558,7 @@
       "UpdateExamRequest": {
         "type": "object",
         "properties": {
-          "userId": {
+          "supporterId": {
             "type": "integer",
             "format": "int32",
             "nullable": true

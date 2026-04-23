@@ -25,6 +25,8 @@ public partial class SupporterBeDanContext : DbContext
 
     public virtual DbSet<ExamCompletionStatus> ExamCompletionStatuses { get; set; }
 
+    public virtual DbSet<ExamAssignment> ExamAssignments { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         if (!optionsBuilder.IsConfigured)
@@ -39,8 +41,6 @@ public partial class SupporterBeDanContext : DbContext
         {
             entity.HasKey(e => e.Id).HasName("PK__ExamRegi__3214EC0728318F35");
 
-            entity.HasIndex(e => e.SupporterId, "IX_Exam_SupporterId");
-
             entity.HasIndex(e => e.UserId, "IX_Exam_UserId");
 
             entity.Property(e => e.ContactInfo).HasMaxLength(200);
@@ -54,12 +54,7 @@ public partial class SupporterBeDanContext : DbContext
                 .HasColumnName("SPCode");
             entity.Property(e => e.Subject).HasMaxLength(100);
 
-            entity.HasOne(d => d.Supporter).WithMany(p => p.ExamRegistrationSupporters)
-                .HasForeignKey(d => d.SupporterId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Exam_Supporter");
-
-            entity.HasOne(d => d.User).WithMany(p => p.ExamRegistrationUsers)
+            entity.HasOne(d => d.User).WithMany(p => p.ExamRegistrations)
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Exam_User");
@@ -108,5 +103,29 @@ public partial class SupporterBeDanContext : DbContext
         OnModelCreatingPartial(modelBuilder);
     }
 
-    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+    private void OnModelCreatingPartial(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ExamAssignment>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__ExamAssignment__3214EC07A1B2F3C9");
+
+            entity.HasIndex(e => e.ExamRegistrationId, "IX_ExamAssignment_ExamRegistrationId");
+
+            entity.HasIndex(e => e.SupporterId, "IX_ExamAssignment_SupporterId");
+
+            entity.Property(e => e.AssignedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.ExamRegistration).WithMany(p => p.ExamAssignments)
+                .HasForeignKey(d => d.ExamRegistrationId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ExamAssignment_ExamRegistration");
+
+            entity.HasOne(d => d.Supporter).WithMany(p => p.ExamAssignments)
+                .HasForeignKey(d => d.SupporterId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ExamAssignment_Supporter");
+        });
+    }
 }

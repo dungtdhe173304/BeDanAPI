@@ -21,9 +21,9 @@ public partial class User
 
     public DateTime? CreatedAt { get; set; }
 
-    public virtual ICollection<ExamRegistration> ExamRegistrationSupporters { get; set; } = new List<ExamRegistration>();
+    public virtual ICollection<ExamRegistration> ExamRegistrations { get; set; } = new List<ExamRegistration>();
 
-    public virtual ICollection<ExamRegistration> ExamRegistrationUsers { get; set; } = new List<ExamRegistration>();
+    public virtual ICollection<ExamAssignment> ExamAssignments { get; set; } = new List<ExamAssignment>();
 
     public virtual Role Role { get; set; } = null!;
 }

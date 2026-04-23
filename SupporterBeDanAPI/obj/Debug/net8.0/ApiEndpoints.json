@@ -216,6 +216,16 @@
   },
   {
     "ContainingType": "SupporterBeDanAPI.Controllers.ExamsController",
+    "Method": "GetMyAssignedExams",
+    "RelativePath": "Exams/my-exams",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "SupporterBeDanAPI.Controllers.ExamsController",
     "Method": "GetPendingExams",
     "RelativePath": "Exams/pending",
     "HttpMethod": "GET",
@@ -238,6 +248,16 @@
     "ContainingType": "SupporterBeDanAPI.Controllers.ExamsController",
     "Method": "GetRegistrationStatuses",
     "RelativePath": "Exams/statuses/registration",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "SupporterBeDanAPI.Controllers.UsersController",
+    "Method": "GetSupporters",
+    "RelativePath": "Users/supporters",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,

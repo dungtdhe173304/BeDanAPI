@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace SupporterBeDanAPI.Models;
+﻿namespace SupporterBeDanAPI.Models;
 
 public partial class ExamRegistration
 {
     public int Id { get; set; }
 
     public int UserId { get; set; }
-
-    public int SupporterId { get; set; }
 
     public string Subject { get; set; } = null!;
 
@@ -29,7 +24,7 @@ public partial class ExamRegistration
 
     public int ExamCompletionStatusId { get; set; }
 
-    public virtual User Supporter { get; set; } = null!;
+    public virtual ICollection<ExamAssignment> ExamAssignments { get; set; } = new List<ExamAssignment>();
 
     public virtual User User { get; set; } = null!;
 

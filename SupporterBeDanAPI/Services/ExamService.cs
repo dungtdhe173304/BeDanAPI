@@ -9,9 +9,10 @@ public interface IExamService
 {
     Task<List<ExamResponse>> GetAllExamsAsync();
     Task<List<ExamResponse>> GetAllExamsByDateAsync(DateOnly date);
+    Task<List<ExamResponse>> GetExamsBySupporterAsync(int supporterId);
     Task<List<DateOnly>> GetAllExamDatesAsync();
     Task<ExamResponse?> GetExamByIdAsync(int id);
-    Task<ExamResponse?> CreateExamAsync(CreateExamRequest request, int supporterId);
+    Task<ExamResponse?> CreateExamAsync(CreateExamRequest request, int userId);
     Task<ExamResponse?> UpdateExamAsync(int id, UpdateExamRequest request, int userId);
     Task<bool> DeleteExamAsync(int id, int userId);
     Task<List<ExamHistoryResponse>> GetUserExamHistoryAsync(int userId);
@@ -37,7 +38,10 @@ public class ExamService : IExamService
     {
         return await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+                .ThenInclude(u => u.Role)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .OrderByDescending(e => e.CreatedAt)
@@ -49,11 +53,28 @@ public class ExamService : IExamService
     {
         return await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .Where(e => e.ExamDate == date)
             .OrderBy(e => e.Slot)
+            .Select(e => MapToExamResponse(e))
+            .ToListAsync();
+    }
+
+    public async Task<List<ExamResponse>> GetExamsBySupporterAsync(int supporterId)
+    {
+        return await _context.ExamRegistrations
+            .Include(e => e.User)
+                .ThenInclude(u => u.Role)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
+            .Include(e => e.RegistrationStatus)
+            .Include(e => e.ExamCompletionStatus)
+            .Where(e => e.ExamAssignments.Any(a => a.SupporterId == supporterId))
+            .OrderByDescending(e => e.CreatedAt)
             .Select(e => MapToExamResponse(e))
             .ToListAsync();
     }
@@ -71,7 +92,9 @@ public class ExamService : IExamService
     {
         var exam = await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .FirstOrDefaultAsync(e => e.Id == id);
@@ -79,25 +102,24 @@ public class ExamService : IExamService
         return exam == null ? null : MapToExamResponse(exam);
     }
 
-    public async Task<ExamResponse?> CreateExamAsync(CreateExamRequest request, int supporterId)
+    public async Task<ExamResponse?> CreateExamAsync(CreateExamRequest request, int userId)
     {
-        // SupporterId là người tạo lịch thi, UserId là người đăng ký thi
-        // Nếu request.UserId = 0 hoặc không tồn tại, sử dụng supporterId làm cả hai
-        var userId = request.UserId > 0 && await _context.Users.AnyAsync(u => u.Id == request.UserId) 
-            ? request.UserId 
-            : supporterId;
+        if (request.SupporterId <= 0)
+        {
+            _logger.LogWarning("Create exam failed: Invalid SupporterId {SupporterId}", request.SupporterId);
+            return null;
+        }
 
-        var supporterExists = await _context.Users.AnyAsync(u => u.Id == supporterId);
+        var supporterExists = await _context.Users.AnyAsync(u => u.Id == request.SupporterId);
         if (!supporterExists)
         {
-            _logger.LogWarning("Create exam failed: Supporter {SupporterId} not found", supporterId);
+            _logger.LogWarning("Create exam failed: Supporter {SupporterId} not found", request.SupporterId);
             return null;
         }
 
         var exam = new ExamRegistration
         {
             UserId = userId,
-            SupporterId = supporterId,
             Subject = request.Subject,
             ExamDate = request.ExamDate,
             Slot = request.Slot,
@@ -112,11 +134,23 @@ public class ExamService : IExamService
         _context.ExamRegistrations.Add(exam);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Exam created with ID {ExamId} for User {UserId}", exam.Id, exam.UserId);
+        var assignment = new ExamAssignment
+        {
+            ExamRegistrationId = exam.Id,
+            SupporterId = request.SupporterId,
+            AssignedAt = DateTime.UtcNow
+        };
+
+        _context.ExamAssignments.Add(assignment);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Exam created with ID {ExamId} for User {UserId} with Supporter {SupporterId}", exam.Id, exam.UserId, request.SupporterId);
 
         exam = await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .FirstAsync(e => e.Id == exam.Id);
@@ -128,7 +162,8 @@ public class ExamService : IExamService
     {
         var exam = await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .FirstOrDefaultAsync(e => e.Id == id);
@@ -139,21 +174,37 @@ public class ExamService : IExamService
             return null;
         }
 
-        if (exam.UserId != userId && exam.SupporterId != userId)
+        var currentSupporterId = exam.ExamAssignments.FirstOrDefault()?.SupporterId ?? 0;
+        if (exam.UserId != userId && currentSupporterId != userId)
         {
             _logger.LogWarning("Update exam failed: User {UserId} not authorized to update exam {ExamId}", userId, id);
             return null;
         }
 
-        if (request.UserId.HasValue && request.UserId.Value != exam.UserId)
+        if (request.SupporterId.HasValue && request.SupporterId.Value != currentSupporterId)
         {
-            var userExists = await _context.Users.AnyAsync(u => u.Id == request.UserId.Value);
-            if (!userExists)
+            var supporterExists = await _context.Users.AnyAsync(u => u.Id == request.SupporterId.Value);
+            if (!supporterExists)
             {
-                _logger.LogWarning("Update exam failed: New User {UserId} not found", request.UserId.Value);
+                _logger.LogWarning("Update exam failed: New Supporter {SupporterId} not found", request.SupporterId.Value);
                 return null;
             }
-            exam.UserId = request.UserId.Value;
+
+            var existingAssignment = exam.ExamAssignments.FirstOrDefault();
+            if (existingAssignment != null)
+            {
+                existingAssignment.SupporterId = request.SupporterId.Value;
+                existingAssignment.AssignedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                exam.ExamAssignments.Add(new ExamAssignment
+                {
+                    ExamRegistrationId = exam.Id,
+                    SupporterId = request.SupporterId.Value,
+                    AssignedAt = DateTime.UtcNow
+                });
+            }
         }
 
         if (!string.IsNullOrEmpty(request.Subject))
@@ -186,7 +237,9 @@ public class ExamService : IExamService
 
         exam = await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .FirstAsync(e => e.Id == id);
@@ -197,6 +250,7 @@ public class ExamService : IExamService
     public async Task<bool> DeleteExamAsync(int id, int userId)
     {
         var exam = await _context.ExamRegistrations
+            .Include(e => e.ExamAssignments)
             .FirstOrDefaultAsync(e => e.Id == id);
 
         if (exam == null)
@@ -205,7 +259,8 @@ public class ExamService : IExamService
             return false;
         }
 
-        if (exam.UserId != userId && exam.SupporterId != userId)
+        var currentSupporterId = exam.ExamAssignments.FirstOrDefault()?.SupporterId ?? 0;
+        if (exam.UserId != userId && currentSupporterId != userId)
         {
             _logger.LogWarning("Delete exam failed: User {UserId} not authorized to delete exam {ExamId}", userId, id);
             return false;
@@ -221,6 +276,11 @@ public class ExamService : IExamService
     public async Task<List<ExamHistoryResponse>> GetUserExamHistoryAsync(int userId)
     {
         return await _context.ExamRegistrations
+            .Include(e => e.User)
+                .ThenInclude(u => u.Role)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .Where(e => e.UserId == userId)
@@ -228,11 +288,18 @@ public class ExamService : IExamService
             .Select(e => new ExamHistoryResponse
             {
                 Id = e.Id,
+                UserId = e.UserId,
+                UserFullName = e.User.FullName,
+                UserRoleName = e.User.Role.Name,
+                SupporterId = e.ExamAssignments.FirstOrDefault() != null ? e.ExamAssignments.FirstOrDefault().SupporterId : 0,
+                SupporterFullName = e.ExamAssignments.FirstOrDefault() != null ? e.ExamAssignments.FirstOrDefault().Supporter.FullName : null,
+                SupporterRoleName = e.ExamAssignments.FirstOrDefault() != null ? e.ExamAssignments.FirstOrDefault().Supporter.Role.Name : null,
                 Subject = e.Subject,
                 ExamDate = e.ExamDate,
                 Slot = e.Slot,
                 Spcode = e.Spcode,
                 PaymentStatus = e.PaymentStatus,
+                ContactInfo = e.ContactInfo,
                 CreatedAt = e.CreatedAt,
                 RegistrationStatusId = e.RegistrationStatusId,
                 RegistrationStatusName = e.RegistrationStatus.Name,
@@ -246,7 +313,9 @@ public class ExamService : IExamService
     {
         return await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .Where(e => e.RegistrationStatusId == 1)
@@ -259,7 +328,9 @@ public class ExamService : IExamService
     {
         var exam = await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .FirstOrDefaultAsync(e => e.Id == id);
@@ -284,7 +355,9 @@ public class ExamService : IExamService
 
         exam = await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .FirstAsync(e => e.Id == id);
@@ -296,7 +369,9 @@ public class ExamService : IExamService
     {
         var exam = await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .FirstOrDefaultAsync(e => e.Id == id);
@@ -321,7 +396,9 @@ public class ExamService : IExamService
 
         exam = await _context.ExamRegistrations
             .Include(e => e.User)
-            .Include(e => e.Supporter)
+            .Include(e => e.ExamAssignments)
+                .ThenInclude(a => a.Supporter)
+                    .ThenInclude(s => s.Role)
             .Include(e => e.RegistrationStatus)
             .Include(e => e.ExamCompletionStatus)
             .FirstAsync(e => e.Id == id);
@@ -345,15 +422,18 @@ public class ExamService : IExamService
 
     private static ExamResponse MapToExamResponse(ExamRegistration exam)
     {
+        var assignment = exam.ExamAssignments?.FirstOrDefault();
         return new ExamResponse
         {
             Id = exam.Id,
             UserId = exam.UserId,
             UserFullName = exam.User?.FullName,
+            UserRoleName = exam.User?.Role?.Name,
             UserFacebook = exam.User?.Facebook,
             UserPhone = exam.User?.Phone,
-            SupporterId = exam.SupporterId,
-            SupporterFullName = exam.Supporter?.FullName,
+            SupporterId = assignment?.SupporterId ?? 0,
+            SupporterFullName = assignment?.Supporter?.FullName,
+            SupporterRoleName = assignment?.Supporter?.Role?.Name,
             Subject = exam.Subject,
             ExamDate = exam.ExamDate,
             Slot = exam.Slot,

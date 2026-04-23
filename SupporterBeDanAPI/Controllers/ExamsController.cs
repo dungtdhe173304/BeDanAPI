@@ -45,6 +45,51 @@ public class ExamsController : ControllerBase
         return Ok(ApiResponse.Success(dates, "Lấy danh sách ngày thi thành công"));
     }
 
+    [HttpGet("my-exams")]
+    public async Task<IActionResult> GetMyAssignedExams()
+    {
+        var userId = GetCurrentUserId();
+        var userRole = GetCurrentUserRole();
+
+        if (userId == 0)
+        {
+            return Unauthorized(ApiResponse.Unauthorized("Không xác định được người dùng"));
+        }
+
+        List<ExamResponse> exams;
+        if (userRole == "Admin" || userRole == "Supporter")
+        {
+            exams = await _examService.GetExamsBySupporterAsync(userId);
+        }
+        else
+        {
+            var history = await _examService.GetUserExamHistoryAsync(userId);
+            exams = history.Select(e => new ExamResponse
+            {
+                Id = e.Id,
+                UserId = e.UserId,
+                UserFullName = e.UserFullName,
+                UserRoleName = e.UserRoleName,
+                SupporterId = e.SupporterId,
+                SupporterFullName = e.SupporterFullName,
+                SupporterRoleName = e.SupporterRoleName,
+                Subject = e.Subject,
+                ExamDate = e.ExamDate,
+                Slot = e.Slot,
+                Spcode = e.Spcode,
+                PaymentStatus = e.PaymentStatus,
+                ContactInfo = e.ContactInfo,
+                CreatedAt = e.CreatedAt,
+                RegistrationStatusId = e.RegistrationStatusId,
+                RegistrationStatusName = e.RegistrationStatusName,
+                ExamCompletionStatusId = e.ExamCompletionStatusId,
+                ExamCompletionStatusName = e.ExamCompletionStatusName
+            }).ToList();
+        }
+
+        return Ok(ApiResponse.Success(exams, "Lấy danh sách lịch thi thành công"));
+    }
+
     [HttpGet("by-date/{date}")]
     public async Task<IActionResult> GetExamsByDate(DateOnly date)
     {
@@ -72,15 +117,22 @@ public class ExamsController : ControllerBase
         }
 
         var userId = GetCurrentUserId();
+        var userRole = GetCurrentUserRole();
         if (userId == 0)
         {
             return Unauthorized(ApiResponse.Unauthorized("Không xác định được người dùng"));
         }
 
+        // Chỉ User mới được tạo lịch thi
+        if (userRole == "Admin" || userRole == "Supporter")
+        {
+            return BadRequest(ApiResponse.BadRequest("Chỉ người dùng mới được tạo lịch thi"));
+        }
+
         var exam = await _examService.CreateExamAsync(request, userId);
         if (exam == null)
         {
-            return BadRequest(ApiResponse.Error("Tạo lịch thi thất bại. Vui lòng kiểm tra lại UserId."));
+            return BadRequest(ApiResponse.Error("Tạo lịch thi thất bại. Vui lòng kiểm tra lại SupporterId."));
         }
 
         return CreatedAtAction(nameof(GetExamById), new { id = exam.Id }, ApiResponse.Success(exam, "Tạo lịch thi thành công"));

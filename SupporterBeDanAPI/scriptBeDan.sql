@@ -62,7 +62,6 @@ CREATE TABLE ExamRegistrations (
     Id INT IDENTITY(1,1) PRIMARY KEY,
 
     UserId INT NOT NULL,
-    SupporterId INT NOT NULL,
 
     Subject NVARCHAR(100) NOT NULL,
     ExamDate DATE NOT NULL,
@@ -79,9 +78,6 @@ CREATE TABLE ExamRegistrations (
     CONSTRAINT FK_Exam_User
         FOREIGN KEY (UserId) REFERENCES Users(Id),
 
-    CONSTRAINT FK_Exam_Supporter
-        FOREIGN KEY (SupporterId) REFERENCES Users(Id),
-
     CONSTRAINT FK_Exam_RegistrationStatus
         FOREIGN KEY (RegistrationStatusId) REFERENCES RegistrationStatuses(Id),
 
@@ -91,8 +87,26 @@ CREATE TABLE ExamRegistrations (
 GO
 
 CREATE INDEX IX_Exam_UserId ON ExamRegistrations(UserId);
-CREATE INDEX IX_Exam_SupporterId ON ExamRegistrations(SupporterId);
 GO
+
+CREATE TABLE ExamAssignments (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    ExamRegistrationId INT NOT NULL,
+    SupporterId INT NOT NULL,
+    AssignedAt DATETIME DEFAULT GETDATE(),
+
+    CONSTRAINT FK_ExamAssignment_Exam
+        FOREIGN KEY (ExamRegistrationId) REFERENCES ExamRegistrations(Id),
+
+    CONSTRAINT FK_ExamAssignment_Supporter
+        FOREIGN KEY (SupporterId) REFERENCES Users(Id)
+);
+GO
+
+CREATE INDEX IX_ExamAssignment_ExamId ON ExamAssignments(ExamRegistrationId);
+CREATE INDEX IX_ExamAssignment_SupporterId ON ExamAssignments(SupporterId);
+GO
+
 INSERT INTO Users (Username, Password, FullName, RoleId)
 VALUES 
 ('chubedan_admin', 'Dungdan2003$', N'Admin Bé Đần', 1),
